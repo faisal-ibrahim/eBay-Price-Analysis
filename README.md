@@ -15,6 +15,7 @@ All the statistical results are passed back to PHP through JSON format.
 The script finishes by outputing to HTML.
 
 # Requirements
+-Program files: analytics.php, apiFunctions.php, statistics.py  
 -eBay developer token. Place it in apiFunctions.php line 7 (or variable $appid).  
 -Python and Matplotlib  
 

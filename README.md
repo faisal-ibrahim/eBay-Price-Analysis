@@ -10,13 +10,13 @@ During this time, PHP calls the python script, "statistics.py", which does the f
  1. Load data.csv
  2. Compute statistical results (historgram, average, means, standard deviation, percentile)
  3. 1000 Bootstrap re-sampling on the data set to get a measure of what's called "Variance of the means"
- 4. Generate plots: bootstrap.png, histogram.png, plot.png
+ 4. Generate plots: bootstrap.png, histogram.png, plot.png  
 All the statistical results are passed back to PHP through JSON format.
 The script finishes by outputing to HTML.
 
 # Requirements
--eBay developer token. Place it in apiFunctions.php line 7 (or variable $appid).
--Python and Matplotlib
+-eBay developer token. Place it in apiFunctions.php line 7 (or variable $appid).  
+-Python and Matplotlib  
 
 # Usage
 1. Serve the analytics.php file with your web server.

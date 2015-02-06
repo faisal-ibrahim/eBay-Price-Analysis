@@ -29,7 +29,7 @@ $sortOrder = 'EndTimeSoonest';
 
 
 // Load the call and capture the document returned by eBay API
-$apicall = getApiURL($operation, $query, $filter, $sortOrder);
+$apicall = getApiURL($operation, $query, $filterarray, $sortOrder);
 $resp = simplexml_load_file($apicall);
 
 

@@ -23,8 +23,8 @@ function getApiURL($operation, $query, $filterarray, $sortOrder){
 	$apicall .= "&paginationInput.entriesPerPage=100";
 	$apicall .= "$urlfilter";
 	$apicall .= "&sortOrder=$sortOrder";
-        // Used to get shipping cost. Should be parameterized buyer's postal code.
-        $apicall .= "&buyerPostalCode=11432";
+    // Used to get shipping cost. Should be parameterized buyer's postal code.
+    $apicall .= "&buyerPostalCode=11432";
 	
 	return $apicall;
 }
@@ -70,19 +70,21 @@ function extractRespContent($resp, $maxPrice){
                 'listingType' => $item->listingInfo->listingType,
                 'startTime'   => $item->listingInfo->startTime,
                 'endTime'     => $item->listingInfo->endTime,
-                'buyItNowPrice'=> 0, // to be modifed below
+                'buyItNowPrice'=> 0.0, // to be modifed below
                 //condition
                 'conditionDisplayName' => $item->condition->conditionDisplayName,
                 //shippingInfo
                 'shippingServiceCost' => $item->shippingInfo->shippingServiceCost,
-                //calculated
-                'totalPrice' => ($item->sellingStatus->currentPrice)  + ($item->shippingInfo->shippingServiceCost)
+                //calculated quantity
+                'price'      => 0.0,
+                'totalPrice' => floatval($item->sellingStatus->currentPrice)  + floatval($item->shippingInfo->shippingServiceCost)
             );
 
         // If the item is an AuctionWithBIN, then it has an buyItNowPrice attribute to append
         if (isset($item->listingInfo->buyItNowPrice)){
             $temp['buyItNowPrice'] = $item->listingInfo->buyItNowPrice;  // If auction: buy it now price
-            $temp['totalPrice'] = max(($item->sellingStatus->currentPrice),($item->listingInfo->buyItNowPrice) )  + ($item->shippingInfo->shippingServiceCost);
+            $temp['price'] = max(floatval($item->sellingStatus->currentPrice), floatval($item->listingInfo->buyItNowPrice) );
+            $temp['totalPrice'] = floatval($temp['price']) + floatval($item->shippingInfo->shippingServiceCost);
         }
         
         if ( ($maxPrice=="") || ($temp['totalPrice'] < $maxPrice) ){
@@ -97,6 +99,7 @@ function extractRespContent($resp, $maxPrice){
     //var_dump($arr);
     return $arr;
 }
+
 
 
 function filter_append($minPrice, $maxPrice, $condition, $format, $onlineStatus, $country){
@@ -180,8 +183,6 @@ function filter_append($minPrice, $maxPrice, $condition, $format, $onlineStatus,
 
     return $filterarray;
 }
-
-
 
 
 /**

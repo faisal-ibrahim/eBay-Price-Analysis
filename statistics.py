@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from subprocess import call
 from numpy import *
 #call(['whoami'])
+priceColumn = 15
 
 def bootstrap(dataSet):
     arr = []
@@ -30,12 +31,12 @@ def bootstrap(dataSet):
 
 def getStatistics(dataSet):
     d = {}
-    d["n"]      = len( dataSet )
-    d["average"]= int( mean(dataSet) )
-    d["median"] = int( median(dataSet) )
-    d["stdev"]  = int( std(dataSet) )
-    d["mini"]   = int( amin(dataSet) )
-    d["maxi"]   = int( amax(dataSet) )
+    d["n"]      = len(dataSet)
+    d["average"]= round(mean(dataSet), 2)
+    d["median"] = round(median(dataSet), 2)
+    d["stdev"]  = round(std(dataSet), 2)
+    d["mini"]   = round(amin(dataSet), 2)
+    d["maxi"]   = round(amax(dataSet),2)
 
     pcTile = np.int_(percentile(dataSet, [10, 20, 30, 40, 50, 60, 70, 80, 90]))
     d["p10"] = pcTile[0]
@@ -50,6 +51,12 @@ def getStatistics(dataSet):
     return d
 
 # Load prices
+#try:
+#    data = json.loads(sys.argv[1])
+#except:
+#    print "Error passing JSON from PHP to Python"
+#    sys.exit(1)
+
 totalPrice = []
 entryNumber =[]
 with open('data.csv', 'rb') as csvfile:
@@ -58,7 +65,7 @@ with open('data.csv', 'rb') as csvfile:
 	i = 1
 	for row in line:
 		entryNumber = entryNumber + [i]
-		totalPrice = totalPrice + [int(row[13])] # column 13th of data.csv contains prices
+		totalPrice = totalPrice + [float(row[priceColumn])] # column 15th of data.csv contains prices
 		i = i+1
 totalPrice.reverse() # Reverse: make most recent data points with the largest index
 n = len(totalPrice)
@@ -66,15 +73,6 @@ n = len(totalPrice)
 # order statistics
 stats = getStatistics(totalPrice)
 
-
-# Method 1: Save to csv
-# look into JSON encode, it's cleaner communication with PHP
-#header = ['number of data', 'average', 'median', 'standard deviation', 'maximum', 'minimum', 'p10', 'p20', 'p30', 'p40', 'p50', 'p60', 'p70', 'p80', 'p90']
-#content = [n, avg_totalPrice, median_totalPrice, stdev_totalPrice, maxi, mini, pcTile[0], pcTile[1], pcTile[2], pcTile[3], pcTile[4], pcTile[5], pcTile[6], pcTile[7], pcTile[8]]
-#with open('statistics.csv', 'wb') as fout:
-#	csvWriter = csv.writer(fout)
-#	csvWriter.writerow(header)
-#	csvWriter.writerow(content)
 
 
 # Price vs time
@@ -125,8 +123,6 @@ plt.savefig('bootstrap.png')
 
 
 #Use JSON to pass back to PHP
-#dictionary = dict(zip(header, content))
-#print json.dumps(dictionary) # send it to stout (to PHP)
 print json.dumps(stats) # send it to stout (to PHP)
 
 

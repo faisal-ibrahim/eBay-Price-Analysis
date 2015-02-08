@@ -139,9 +139,8 @@ function displayListing($resp, $maxPrice, &$listingContent){
     
      
     // Append all eBay listing in loop to $listingContent string
-    $n=0;
+    $n=1;
     foreach($resp->searchResult->item as $item) {
-        $n++;
         // Pull object content into variables
         $itemId       = $item->itemId;
         $title        = $item->title;
@@ -157,7 +156,7 @@ function displayListing($resp, $maxPrice, &$listingContent){
         $listingType = $item->listingInfo->listingType;
         $startTime   = $item->listingInfo->startTime;
         $endTime     = $item->listingInfo->endTime;
-        $buyItNowPrice = 0;
+        $buyItNowPrice = 0.0;
         //condition
         $conditionDisplayName = $item->condition->conditionDisplayName;
         //shippingInfo
@@ -196,6 +195,8 @@ function displayListing($resp, $maxPrice, &$listingContent){
     
             <td align='center' bgcolor=\"$colorA\"> $endTime </td>
             </tr>";
+
+            $n++;
         }
     }
     

@@ -57,20 +57,21 @@ $resp = simplexml_load_file($apicall);
 if ($resp->ack == "Success") {
     
     // HTML strings for statistics results and eBay listing results
-    $listingContent  = '';
-    $statisticsContent ='';
+    $listingHTML  = '';
+    $statisticsHTML ='';
+    
+
+
+
+    // Extract listings from JSON response; Also remove products whose total cost > $maxprice
+    $listingArray = removeOverPrice($resp, $maxPrice);
 
 
 
 
-    // Collect attrbutes data of each item into array 
-    $itemDataArray = extractRespContent($resp, $maxPrice);
-
-
-
-
-    // Save all the data contents into a csv file
-    $csvString = str_putcsv($itemDataArray);
+    // Convert listingArray to Associateive format so str_putcsv can process into csv
+    $listingArrayAssociative = convertToAssociative($listingArray);
+    $csvString = str_putcsv($listingArrayAssociative);                         // Save all the data contents into a csv file
     $fp = fopen('data.csv', 'w');
     fwrite($fp, $csvString);
     fclose($fp);
@@ -79,27 +80,28 @@ if ($resp->ack == "Success") {
 
 
     // Python Processing: read csv files, perform statistical analysis, return statistis to PHP in JSON
-    $command = escapeshellcmd('python statistics.py'); //. escapeshellarg(json_encode($itemDataArray)));
-    $output = shell_exec($command);
-    $stats = json_decode($output,true); // Array ( [p60] => 626 [p70] => 643 [p90] => 749 [average] => 666 ...etc )
+    $command = escapeshellcmd('python statistics.py'); //. escapeshellarg(json_encode($listingArrayCustom)));
+    $output  = shell_exec($command);
+    $stats   = json_decode($output,true); // Array ( [p60] => 626 [p70] => 643 [p90] => 749 [average] => 666 ...etc )
 
 
 
 
     // Output statistical results to HTML/Browser
-    displayStats($stats, $statisticsContent);
+    displayStats($stats, $statisticsHTML);
 
 
-
+     
     // Output eBay listings to HTML/Browser
-    displayListing($resp, $maxPrice, $listingContent);
+    displayListing($listingArray, $listingHTML);
+    
 
 }
 
 // If the response does not indicate 'Success,' print an error
 else {
-	$listingContent  = "<h3>Oops! The request was not successful. Make sure you are using a valid ";
-	$listingContent .= "AppID for the Production environment.</h3>";
+	$listingHTML  = "<h3>Oops! The request was not successful. Make sure you are using a valid ";
+	$listingHTML .= "AppID for the Production environment.</h3>";
 }
 
 /* End of script */
@@ -111,7 +113,9 @@ else {
 <?php
 /* PHP functions that help with outputing to Browser */
 
-function displayListing($resp, $maxPrice, &$listingContent){
+
+
+function displayListing($resp, &$listingHTML){
     $header='
     <table cellspacing="1" cellpadding="1" width="100%">
     <tr>
@@ -134,13 +138,13 @@ function displayListing($resp, $maxPrice, &$listingContent){
     $footer='</table>';
     
 
-    // Append header to $listingContent string
-    $listingContent .= $header;
+    // Append header to $listingHTML string
+    $listingHTML .= $header;
     
      
-    // Append all eBay listing in loop to $listingContent string
+    // Append all eBay listing in loop to $listingHTML string
     $n=1;
-    foreach($resp->searchResult->item as $item) {
+    foreach($resp as $item) {
         // Pull object content into variables
         $itemId       = $item->itemId;
         $title        = $item->title;
@@ -164,6 +168,9 @@ function displayListing($resp, $maxPrice, &$listingContent){
 
 
         //calculated quantity
+        $price = $item->calculatedQuantity->price;
+        $totalPrice = $item->calculatedQuantity->totalPrice;
+        /*
         $totalPrice = 0;
         // If the item is an AuctionWithBIN, then it has an buyItNowPrice attribute to append
         if (isset($item->listingInfo->buyItNowPrice)){ //buyItNowPrice appears (generally an AuctionwWithBIN item)
@@ -171,12 +178,13 @@ function displayListing($resp, $maxPrice, &$listingContent){
         }
         $price = max($currentPrice, $buyItNowPrice);
         $totalPrice = floatval($price)+floatval($shippingServiceCost);
+        */
 
-        // For each SearchResultItem node, build a link and append it to $listingContent
+        // For each SearchResultItem node, build a link and append it to $listingHTML
         if ( ($maxPrice=="") || ($totalPrice < $maxPrice) ){
             $colorA='#F6CED8';
             $colorB='#E0F2F7';
-            $listingContent .= "
+            $listingHTML .= "
             <tr>
             <td align='center' bgcolor=\"$colorA\">$n. </td>
             <td align='center' bgcolor=\"$colorB\"><img src=\"$galleryURL\"></td>
@@ -201,10 +209,10 @@ function displayListing($resp, $maxPrice, &$listingContent){
     }
     
     // End of loop. Finish off with appending the footer
-    $listingContent .= $footer;
+    $listingHTML .= $footer;
 }
 
-function displayStats($stats, &$statisticsContent){
+function displayStats($stats, &$statisticsHTML){
     // Pull object content into variables
     $n = $stats["n"];
     $average = $stats["average"];
@@ -222,67 +230,78 @@ function displayStats($stats, &$statisticsContent){
     $p80 = $stats["p80"];
     $p90 = $stats["p90"];
 
-    // For each SearchResultItem node, build a link and append it to $listingContent
+    // For each SearchResultItem node, build a link and append it to $listingHTML
     // Explanation of resizing: max-width allows resizing up to certain percentage (relative to current container);
     //   -width (in percent) always lock objects at that relative size
     //   -Hence the table is locked with "width=80%" while the inner, td, gets max-width resizes up to 100% relative to container   
-    $statisticsContent .= "
-    <table align='left' width='80%'>
-
+    $statisticsHTML .= "
+    <div>
+    <table width='80%' align='center'>
     <tr>
+        <td>
+            <img src=\"plot.png\" align='right'>
+        </td>
 
-     <td valign='top'>
-      <img src=\"plot.png\" style='max-width:100%'>
-     </td>
-
-     <td valign='' align='left'>
-      <table style='font-size:30' width='70%'>
-       <tr>
-        <td bgcolor='#E0F2F7'>Sample Points Count</td>
-        <td bgcolor='#E0F2F7'>$n</td>
-       </tr>
-       <tr>
-        <td bgcolor='#F6CED8'>Average</td>
-        <td bgcolor='#F6CED8'>\$$average</td>
-       </tr>
-       <tr>
-        <td bgcolor='#E0F2F7'>Standard Deviation</td>
-        <td bgcolor='#E0F2F7'>\$$stdev</td>
-       </tr>
-
-       <tr>
-        <td bgcolor='#F6CED8'>Max</td>
-        <td bgcolor='#F6CED8'>\$$maxi</td>
-       </tr>
-       <tr>
-        <td bgcolor='#E0F2F7'>Min</td>
-        <td bgcolor='#E0F2F7'>\$$mini</td>
-       </tr>
-       <tr>
-        <td bgcolor='#F6CED8'>Median</td>
-        <td bgcolor='#F6CED8'>\$$median</td>
-       </tr>
-       <tr>
-        <td bgcolor='#E0F2F7'>30th Percentile</td>
-        <td bgcolor='#E0F2F7'>\$$p30</td>
-       </tr>
-      </table>
-     </td>
+        <td>
+            <table style='font-size:30'>
+            <body>
+            <tr>
+                <td bgcolor='#E0F2F7'>Sample Points Count</td>
+                <td bgcolor='#E0F2F7'>$n</td>
+            </tr>
+            <tr>
+                <td bgcolor='#F6CED8'>Average</td>
+                <td bgcolor='#F6CED8'>\$$average</td>
+            </tr>
+            <tr>
+                <td bgcolor='#E0F2F7'>Standard Deviation</td>
+                <td bgcolor='#E0F2F7'>\$$stdev</td>
+            </tr>
+            <tr>
+                <td bgcolor='#F6CED8'>Max</td>
+                <td bgcolor='#F6CED8'>\$$maxi</td>
+            </tr>
+            <tr>
+                <td bgcolor='#E0F2F7'>Min</td>
+                <td bgcolor='#E0F2F7'>\$$mini</td>
+            </tr>
+            <tr>
+                <td bgcolor='#F6CED8'>Median</td>
+                <td bgcolor='#F6CED8'>\$$median</td>
+            </tr>
+            <tr>
+                <td bgcolor='#E0F2F7'>40th Percentile</td>
+                <td bgcolor='#E0F2F7'>\$$p40</td>
+            </tr>
+            <tr>
+                <td bgcolor='#E0F2F7'>30th Percentile</td>
+                <td bgcolor='#E0F2F7'>\$$p30</td>
+            </tr>
+            <tr>
+                <td bgcolor='#E0F2F7'>20th Percentile</td>
+                <td bgcolor='#E0F2F7'>\$$p30</td>
+            </tr>
+            <tr>
+                <td bgcolor='#E0F2F7'>10th Percentile</td>
+                <td bgcolor='#E0F2F7'>\$$p30</td>
+            </tr>
+            </body>
+            </table>
+        </td>
     </tr>
-    
 
     <tr>
-     <td valign='top'>
-      <img src=\"histogram.png\" style='max-width:100%'>
-     </td>
-     <td valign='top'>
-      <img src=\"bootstrap.png\" style='max-width:100%'>
-     </td>
+        <td>
+            <img src=\"histogram.png\" align=right>
+        </td>
+        <td>
+            <img src=\"bootstrap.png\" align=left>
+        </td>
     </tr>
 
 
     </table>
- 
+    </div>
     ";
 
 }
@@ -298,48 +317,50 @@ function displayStats($stats, &$statisticsContent){
 
 <!-- Echo user's search query and filter input -->
 <div>
-<table align='left' style="font-size:20" cellspacing="1" cellpadding="5" width="51%">
+<table style="font-size:20;" cellspacing="1" cellpadding="5" width="80%" align='center'>
+<body>
     <tr><th colspan="2" align="center" bgcolor="#ccccc"> Search Query Attributes </th></tr>
     <tr>
-        <th width=100 align="left" bgcolor="#ccccc">Filter</th>
-        <th width=100 align="left" bgcolor="#ccccc">Input</th>
+        <th width='50%' align="right" bgcolor="#ccccc">Filter</th>
+        <th width='50%' align="left" bgcolor="#ccccc">Input</th>
     </tr>
     <tr>
-        <td align="left" bgcolor="#E0F2F7"> Query </td>
+        <td align="right" bgcolor="#E0F2F7"> Query </td>
         <td align="left" bgcolor="#E0F2F7"> <font color="blue"> <b> <?php echo $_POST["search_query"] ?> </b> </font></td>
     </tr>
     <tr>
-        <td align="left" bgcolor="#F6CED8"> Listing Status </td>
+        <td align="right" bgcolor="#F6CED8"> Listing Status </td>
         <td align="left" bgcolor="#F6CED8"> <?php echo $_POST["onlineStatus"] ?> </td>
     </tr>
     <tr>
-        <td align="left" bgcolor="#E0F2F7"> Max </td>
+        <td align="right" bgcolor="#E0F2F7"> Max </td>
         <td align="left" bgcolor="#E0F2F7"> <?php echo "\$".$_POST["maxPrice"] ?> </td>
     </tr>
     <tr>
-        <td align="left" bgcolor="#F6CED8"> Min </td>
+        <td align="right" bgcolor="#F6CED8"> Min </td>
         <td align="left" bgcolor="#F6CED8"> <?php echo "\$".$_POST["minPrice"] ?> </td>
     </tr>
     <tr>
-        <td align="left" bgcolor="#E0F2F7"> Format </td>
+        <td align="right" bgcolor="#E0F2F7"> Format </td>
         <td align="left" bgcolor="#E0F2F7"> <?php echo $_POST["format"] ?> </td>
     </tr>
     <tr>
-        <td align="left" bgcolor="#F6CED8"> Country </td>
+        <td align="right" bgcolor="#F6CED8"> Country </td>
         <td align="left" bgcolor="#F6CED8"> <?php echo $_POST["country"] ?> </td>
     </tr>
+</body>
 </table>
 </div>
 
 
 <!-- Display graphs and statistics analysis -->
 <div>
-    <?php echo $statisticsContent ?>
+    <?php echo $statisticsHTML ?>
 </div>
 
 <!-- Display eBay listings -->
 <div>
-     <?php echo $listingContent ?>
+     <?php echo $listingHTML ?>
 </div>  
 
 		

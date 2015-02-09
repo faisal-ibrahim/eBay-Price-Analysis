@@ -3,9 +3,9 @@ function getApiURL($operation, $query, $filterarray, $sortOrder){
 	
 	// API request variables
 	$endpoint = 'http://svcs.ebay.com/services/search/FindingService/v1';  // URL to call
-	$version  = '1.13.0';                                                  // API version supported by your application
-	$appid    = '';                                                        // Replace with your own AppID
-	$globalid = 'EBAY-US';                                                  // Global ID of the eBay site you want to search (e.g., EBAY-DE)
+	$version  = '1.13.0';   // API version supported by your application
+	$appid    = '';         // Replace with your own AppID
+	$globalid = 'EBAY-US';  // Global ID of the eBay site you want to search (e.g., EBAY-DE)
 
 	// prepare query
 	$safequery = urlencode($query);
@@ -23,8 +23,8 @@ function getApiURL($operation, $query, $filterarray, $sortOrder){
 	$apicall .= "&paginationInput.entriesPerPage=100";
 	$apicall .= "$urlfilter";
 	$apicall .= "&sortOrder=$sortOrder";
-    // Used to get shipping cost. Should be parameterized buyer's postal code.
-    $apicall .= "&buyerPostalCode=11432";
+        // Used to get shipping cost. Should be parameterized buyer's postal code.
+        $apicall .= "&buyerPostalCode=11432";
 	
 	return $apicall;
 }
@@ -51,49 +51,72 @@ function buildURLArray($filterarray) {
 	return "$urlfilter";
 }
 
+function removeOverPrice($resp, $maxPrice){
+    $temp = array();
+    foreach($resp->searchResult->item as $item) {
+        // Pull object content into variables
 
-function extractRespContent($resp, $maxPrice){
+        //sellingStatus
+        $currentPrice = $item->sellingStatus->currentPrice;
+        $sellingState = $item->sellingStatus->sellingState;
+        //listingInfo
+        $buyItNowPrice = 0.0;
+        //shippingInfo
+        $shippingServiceCost = $item->shippingInfo->shippingServiceCost;
+        //calculated quantity
+        $totalPrice = 0;
+        // If the item is an AuctionWithBIN, then it has an buyItNowPrice attribute to append
+        if (isset($item->listingInfo->buyItNowPrice)){ //buyItNowPrice appears (generally an AuctionwWithBIN item)
+             $buyItNowPrice = $item->listingInfo->buyItNowPrice;  // If auction: buy it now price
+        }
+        $price = max($currentPrice, $buyItNowPrice);
+        $totalPrice = floatval($price)+floatval($shippingServiceCost);
+
+        $item->calculatedQuantity->price = floatval($price);                // Cost before shipping
+        $item->calculatedQuantity->totalPrice = floatval($totalPrice);      // Final cost with shipping
+        
+        // For each SearchResultItem node, build a link and append it to $listingContent
+        if ( ($maxPrice=="") || ($totalPrice < $maxPrice) ){
+           array_push($temp, $item);
+        }
+    }
+    return $temp;
+}
+
+function convertToAssociative($resp){
     $arr = array();
     $n = 0;
-    foreach($resp->searchResult->item as $item){
+    foreach($resp as $item){
         $temp = array(
-                'itemId'       => $item->itemId,
-                'title'        => $item->title,
-                'galleryURL'   => $item->galleryURL,
-                'viewItemURL'  => $item->viewItemURL,
-                'postalCode'   => $item->postalCode,
-                'location'     => $item->location,
+                'itemId'               => $item->itemId,
+                'title'                => $item->title,
+                'galleryURL'           => $item->galleryURL,
+                'viewItemURL'          => $item->viewItemURL,
+                'postalCode'           => $item->postalCode,
+                'location'             => $item->location,
                 //sellingStatus
-                'currentPrice'  => $item->sellingStatus->currentPrice, // Also used by auction as: current bidded price
-                'sellingState' => $item->sellingStatus->sellingState,//
+                'currentPrice'         => $item->sellingStatus->currentPrice, // Also used by auction as: current bidded price
+                'sellingState'         => $item->sellingStatus->sellingState,//
                 //listingInfo
-                'listingType' => $item->listingInfo->listingType,
-                'startTime'   => $item->listingInfo->startTime,
-                'endTime'     => $item->listingInfo->endTime,
-                'buyItNowPrice'=> 0.0, // to be modifed below
+                'listingType'          => $item->listingInfo->listingType,
+                'startTime'            => $item->listingInfo->startTime,
+                'endTime'              => $item->listingInfo->endTime,
+                //'buyItNowPrice'        => 0.0, // to be modifed below
                 //condition
                 'conditionDisplayName' => $item->condition->conditionDisplayName,
                 //shippingInfo
-                'shippingServiceCost' => $item->shippingInfo->shippingServiceCost,
+                'shippingServiceCost'  => $item->shippingInfo->shippingServiceCost,
                 //calculated quantity
-                'price'      => 0.0,
-                'totalPrice' => floatval($item->sellingStatus->currentPrice)  + floatval($item->shippingInfo->shippingServiceCost)
+                'price'                =>$item->calculatedQuantity->price,
+                'totalPrice'           =>$item->calculatedQuantity->totalPrice
             );
-
-        // If the item is an AuctionWithBIN, then it has an buyItNowPrice attribute to append
-        if (isset($item->listingInfo->buyItNowPrice)){
-            $temp['buyItNowPrice'] = $item->listingInfo->buyItNowPrice;  // If auction: buy it now price
-            $temp['price'] = max(floatval($item->sellingStatus->currentPrice), floatval($item->listingInfo->buyItNowPrice) );
-            $temp['totalPrice'] = floatval($temp['price']) + floatval($item->shippingInfo->shippingServiceCost);
+        /*
+        if (isset($item->listingInfo->buyItNowPrice)){ //buyItNowPrice appears (generally an AuctionwWithBIN item)
+             $buyItNowPrice = $item->listingInfo->buyItNowPrice;  // If auction: buy it now price
+             $temp['buyItNowPrice'] = $buyItNowPrice;
         }
-        
-        if ( ($maxPrice=="") || ($temp['totalPrice'] < $maxPrice) ){
-            array_push($arr,$temp);
-        }else{
-    
-        }
-
-
+        */
+        array_push($arr,$temp);
         $n++;
     }
     //var_dump($arr);
